@@ -12,6 +12,61 @@ style: |
 backgroundImage: url('https://marp.app/assets/hero-background.svg')
 ---
 
+# Filstruktur i t3:
+
+```js
+.
+├─ prisma
+│  └─ schema.prisma // Definitionen för vår databasmodell
+├─ src
+│  ├─ env.mjs // Definition för hur våra env-variabler ser ut, säkerställer också att vi inte råkar exponera fel variabler i frontend
+│  ├─ pages // Vår frontend-applikation, alla mappar i /pages blir till sökvägar i webbläsaren
+│  │  ├─ _app.tsx
+│  │  ├─ api // Inbyggd funktionalitet för att kommunicera med vårt api, vi navigerar inte hit manuellt
+|  |  ├─ example
+│  │  |  ├─ index.tsx // Där vi hamnar om vi går till localhost:3000/example
+│  │  |  └─ test.tsx // Där vi hamnar om vi går till localhost:3000/example/test
+│  │  └─ index.tsx // Startsidan för appen
+│  ├─ server // Vår backend
+│  │  ├─ auth.ts // Information om autentiseringslösningar
+│  │  ├─ db.ts // Prisma //> tRPC-konfiguration
+│  │  └─ api // Mappen som innehåller definitionen för våra endpoints
+│  │     ├─ routers // Mappen som innehåller endpoints för våra olika modeller i databasen
+│  │     │  └─ example.ts // Definitionen för vilka funktioner som ska kunna göras på example-endpointen,
+|  |     |                // ska ha samma namn som modellen i schema.prisma men med liten bokstav
+│  │     ├─ trpc.ts // Förkonfigurerade lösningar för tRPC
+│  │     └─ root.ts // Huvudkällan för information om våra endpoints, alla filer i /routers ska importeras här och läggas till inuti approuter-objektet
+│  └─ utils
+│     └─ api.ts // Fil som innehåller kopplingen mellan frontend och tRPC, importeras i alla react-komponenter som behöver komma åt data från databasen
+├─ .env // Variabler som behövs för att t.ex. koppla till databasen eller autentisera mot olika inloggningstjänster
+├─ package.json
+└─ tsconfig.json
+
+```
+
+---
+
+# Prisma-kommandon
+
+```js
+
+  npx prisma db push // Skapar en databas utifrån hur vår schema.prisma-fil ser ut
+
+  npx prisma format  // Skapar en-till-många relationer åt oss och formatterar vår schema.prisma-fil
+
+  npx prisma generate // Genererar nya typescript-typer, görs automatiskt i samband med db push
+
+  npx prisma studio // Ger oss ett webbgränssnitt där vi kan utforska datan i vår databas
+
+```
+
+OBS!
+Om typescript ger konstiga fel efter en db push, pröva att starta om VSCode och se om det löser problemet.
+
+Man kan också använda kortkommandot `ctrl-shift-P` och söka efter "Reload Window"
+
+---
+
 # Databas-schema
 
 - All information om hur vår databas ser ut finns i ./prisma/schema.prisma
@@ -26,10 +81,16 @@ backgroundImage: url('https://marp.app/assets/hero-background.svg')
         id      Int         @id
         ^        ^           ^
         |        |           |
-      column  datatyp  restrictions
+      column  datatyp  attributes
 
         }
     ```
+
+---
+
+# Prisma attributes
+
+https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#attributes
 
 ---
 
@@ -42,7 +103,7 @@ model Movie {
   duration        Int
   actor           Actor[] <- Många-till-många relation. En film kan ha flera skådespelare, en skådespelare kan vara med i flera filmer
   filmedInCountry Country @relation(fields: [countryId], references: [id]) < - En-till-många relation. En film filmades i ett land.
-  countryId       Int
+  countryId       Int     <- Se förklaring kring hur en-till-många relationer hänger ihop om två sidor
 }
 
 model Actor {
@@ -78,7 +139,31 @@ model User {
 Efter:
 model Post {
   id      Int   @id @default(autoincrement())
-  user    User2 @relation(fields: [userId], references: [id])
+  user    User @relation(fields: [userId], references: [id])
+  userId  Int
+}
+
+model User {
+  id   Int    @id @default(autoincrement())
+  Post Post[]
+}
+```
+
+---
+
+- En-till-många relationer hänger ihop sådär:
+
+```
+model Post {
+  id      Int   @id @default(autoincrement())
+  Berättar vilken kolumn i den Post-modellen som ska användas för att referera till User-modellen
+                                     |
+                                     ˅
+  user    User @relation(fields: [userId], references: [id])
+                    ^                                    ^
+                    |                                    |
+    Berättar att det är en relation                      |
+                                    Berättar vilken kolumn i User-modellen som ska användas som koppling
   userId  Int
 }
 
@@ -126,6 +211,8 @@ model Optional {
 - För att de ska vara tillgängliga i vår frontend måste de också läggas in i .src/server/api/root.ts:
 
 ---
+
+# root.ts:
 
 ```ts
 import { exampleRouter } from "~/server/api/routers/example";
@@ -259,3 +346,14 @@ const onSubmit = async () => {
   await createExercise.mutateAsync({ name: "name", duration: 10 });
 };
 ```
+
+---
+
+# Flöde från Prisma till frontend
+
+- Skapa en ny model i schema.prisma
+- Skapa en router för modellen i server/api/routers
+  -Lägg till de funktioner du vill kunna göra med modellen, t.ex. findAll, create osv.
+- Importera och lägg till den i approutern i server/api/root.ts
+- Skapa en mapp med samma namn som modellen och inuti den en index.tsx i pages-mappen
+- Importera { api } från utils/api och använd det för att göra dina anrop i din komponent

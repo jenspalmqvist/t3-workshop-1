@@ -5,19 +5,24 @@ import { api } from "~/utils/api";
 
 export default function Home() {
   const allExercises = api.exercise.getAll.useQuery().data;
-
-  const createExercise = api.exercise.createExercise.useMutation();
+  const utils = api.useContext();
+  const createExercise = api.exercise.createExercise.useMutation({
+    onSettled: async () => {
+      await utils.exercise.getAll.invalidate();
+    },
+  });
 
   const [exerciseData, setExerciseData] = useState<
     Pick<Exercise, "name" | "duration">
   >({ name: "", duration: 0 });
-  const onSubmit = async () => {
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     await createExercise.mutateAsync({ ...exerciseData });
   };
 
   return (
     <div>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={(e) => onSubmit(e)}>
         <input
           type="text"
           id="name"
