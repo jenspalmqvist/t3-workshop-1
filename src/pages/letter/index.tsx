@@ -6,7 +6,6 @@ export default function Home() {
   const createLetter = api.letter.createLetter.useMutation();
   const allLetters = api.letter.getAll.useQuery().data;
 
-  console.log("Ändring2");
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     await createLetter.mutateAsync({
       senderName: (event.currentTarget.senderName.value as string) || undefined,
